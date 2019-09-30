@@ -29,6 +29,7 @@ from time import time
 from tensorflow.keras.callbacks import TensorBoard
 import pickle
 
+print_directory_model = '/data/Flow-DA/data/'
 file_name = 'vx_field.npy'
 modelThetis2Dvx = np.load(print_directory_model + file_name)
 file_name = 'vy_field.npy'
@@ -91,12 +92,11 @@ X_total = lookBack(X, look_back)
 np.random.seed(42)
 model = keras.models.Sequential([
     keras.layers.LSTM(units = 12, input_shape = (X_train.shape[1], X_train.shape[2]), return_sequences = True),
-    keras.layers.Dropout(0.2),
+    keras.layers.Dropout(0.1),
 #model.add(LSTM(50, return_sequences = True))
-    keras.layers.LSTM(500, return_sequences = False),
-    keras.layers.Dropout(0.4),
+    keras.layers.LSTM(200, return_sequences = False),
+    keras.layers.Dropout(0.1),
 #model.add(LSTM(100, return_sequences = True))
-    keras.layers.Dropout(0.4),
 #model.add(LSTM(100, return_sequences = False))
 #model.add(Dropout(0.9))
 #model.add(Dropout(0.4))
@@ -113,7 +113,7 @@ rmsprop = optimizers.RMSprop(lr=0.00005, rho=0.9, epsilon=None, decay=0.0)
 #adadelta = optimizers.Adadelta(lr=1.0, rho=0.8, epsilon=None, decay=0.0)
 nadam = optimizers.Nadam(lr = 0.002, beta_1 = 0.9, beta_2 = 0.999, epsilon = None, schedule_decay = 0.004)
 model.compile(loss='mean_squared_error', metrics=['mae'], optimizer='nadam')
-model.fit(X_train, y_train, epochs=1000, batch_size=128, verbose=2, callbacks=[tensorboard], validation_data = (X_test, y_test), shuffle = True)
+model.fit(X_train, y_train, epochs=1000, batch_size=256, verbose=2, callbacks=[tensorboard], validation_data = (X_test, y_test), shuffle = True)
 
 #os.system('scp lstm.h5 caq13@taizi.doc.ic.ac.uk:/data/lstm.h5')
 #model = load_model('/data/lstm.h5')
@@ -216,4 +216,4 @@ for dimension in range(49):
 
 
 
-model.save('/data/lstmThetis_vxvy.h5')
+model.save(print_directory_model + 'lstmThetis_vxvy.h5')
