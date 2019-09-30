@@ -7,7 +7,7 @@ import numpy as np
 from tensorflow import keras
 # Initial parameters
 lengthForecast = 5
-ensembleNumber = 500
+ensembleNumber = 50
 modelStepNumber = 55
 meanEnsemblePerturbation = 0
 varianceEnsemblePerturbation = 0.05
@@ -33,7 +33,11 @@ xmin = pcs[:-1].min(axis=0)
 xmax = pcs[:-1].max(axis=0)
 
 # Load observations
-observations = modelData
+file_name = 'vx_field_obs.npy'
+vxObs = np.load(print_directory_obs + file_name)
+file_name = 'vy_field_obs.npy'
+vyObs = np.load(print_directory_obs + file_name)
+observations = np.hstack((vxObs, vyObs))
 
 # Load model
 model = keras.models.load_model(print_directory_model + 'lstmThetis_vxvy.h5')
