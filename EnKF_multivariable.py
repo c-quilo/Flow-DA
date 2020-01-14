@@ -2,9 +2,13 @@
 Ensemble Kalman Filter
 Multivariate
 Date: 27/09/2019
+
+This version includes only vx and vy
 """
 import numpy as np
 from tensorflow import keras
+sys.path.append('/usr/lib/python2.7/dist-packages/')
+import vtktools
 # Initial parameters
 lengthForecast = 5
 ensembleNumber = 50
@@ -12,9 +16,13 @@ modelStepNumber = 55
 meanEnsemblePerturbation = 0
 varianceEnsemblePerturbation = 0.05
 observationStepNumber = 400
-R = 1e-4
+R = 1e-7
 look_back = 5
 
+start = time.time()
+
+#Path to folders
+directory_model = '/data/Re3000_DH2_outputs2019_08_21_13_58_08/Velocity2d/'
 print_directory_model = '/data/Flow-DA/data/'
 print_directory_obs = '/data/Flow-DA/data/'
 
@@ -28,7 +36,7 @@ meanModel = np.mean(modelData, axis = 0)
 
 pcs = np.load(print_directory_model + 'reduced_vxvy_pcs.npy')
 eofs = np.load(print_directory_model + 'reduced_vxvy_eofs.npy')
-scaler.fit(pcs)
+#scaler.fit(pcs)
 xmin = pcs[:-1].min(axis=0)
 xmax = pcs[:-1].max(axis=0)
 
@@ -54,11 +62,13 @@ model = keras.models.load_model(print_directory_model + 'lstmThetis_vxvy.h5')
 #modelWithLags = lookBack(initialState, look_back)
 #initialState = modelWithLags[modelStepNumber, :, :]
 
-perturbedState = []
-for i in range(ensembleNumber):
-    perturbedState.append(initialState + np.random.normal(meanEnsemblePerturbation, varianceEnsemblePerturbation, (initialState.shape[0], initialState.shape[1])))
-perturbedState = np.array(perturbedState)
+#perturbedState = []
+#for i in range(ensembleNumber):
+#    perturbedState.append(initialState + np.random.normal(meanEnsemblePerturbation, varianceEnsemblePerturbation, (initialState.shape[0], initialState.shape[1])))
+#perturbedState = np.array(perturbedState)
 
+#Perturbation of ensembles
+startperturbed = time.time()
 initialStep = lookBack(pcs, look_back)
 ensembles = []
 initialState = initialStep[modelStepNumber, :, :]
@@ -66,13 +76,16 @@ for i in range(ensembleNumber):
     temp, u, v = scalerThetis(initialState + np.random.normal(meanEnsemblePerturbation, varianceEnsemblePerturbation, (initialState.shape[0], initialState.shape[1])), 0, 1)
     ensembles.append(temp)
 perturbedState = np.array(ensembles)
+finishperturbed = time.time() - startperturbed
 
-# Short-range forecast
+# Short-range forecast by the trained LSTM model
+startforecast = time.time()
 forecastEnsemble = []
 for nEns in range(ensembleNumber):
     forecastEnsemble.append(shortRangeForecast(perturbedState[nEns, :, :], model, look_back, lengthForecast))
 forecastEnsemble = np.array(forecastEnsemble)
 forecastEnsemble = np.transpose(forecastEnsemble)
+finishforecast = time.time() - startforecast
 
 def inverseScalerThetis(xscaled, xmin, xmax, min, max):
     scale = (max - min) / (xmax - xmin)
@@ -85,7 +98,6 @@ for i in range(ensembleNumber):
     #forecastEnsembleInv.append(scaler.inverse_transform(np.reshape(forecastEnsemble[:, i], (-1, 1))))
     forecastEnsembleInv.append(inverseScalerThetis(forecastEnsemble[:, i], xmax, xmin, 0, 1))
 forecastEnsembleInv = np.transpose(np.array(forecastEnsembleInv))
-
 forecast = np.matmul(pcs[modelStepNumber + lengthForecast, :], eofs) + meanModel
 modelForecast = np.matmul(np.mean(forecastEnsembleInv, axis = 1), eofs) + meanModel
 
@@ -104,7 +116,7 @@ perturbedObservationState = np.array(perturbedObservationState)
 perturbedObservationState = np.transpose(perturbedObservationState)
 
 # Kalman gain
-
+startKF = time.time()
 #H = np.transpose(eofs)
 H = np.identity(eofs.shape[1])
 Htilde = np.matmul(H, np.transpose(eofs))
@@ -125,15 +137,20 @@ meanUpdate = np.mean(update, axis=1)
 #Back to Physical space
 #phyState = np.matmul(np.squeeze(scaler.inverse_transform(np.reshape(meanUpdate, (-1, 1)))), np.transpose(H)) + meanModel
 phyState = np.matmul(meanUpdate, eofs) + meanModel
+finishKF = time.time() - startKF
 
-# Separate into n variables
-sectionIndexes = [vx.shape[0], vy.shape[0]]
+# Separate into n variables to save
+sectionIndexes = [modelThetis2Dvx.shape[0], modelThetis2Dvy.shape[0]]
 
 phyState = VTKVectorMaker(phyState, sectionIndexes)
 observationState = VTKVectorMaker(observationState, sectionIndexes)
 forecast = VTKVectorMaker(forecast, sectionIndexes)
 modelForecast = VTKVectorMaker(modelForecast, sectionIndexes)
-
+finish = time.time() - start
+print(finish)
+print(finishperturbed)
+print(finishforecast)
+print(finishKF)
 # Save to .vtu
 filename = 'Velocity2d_'+str(modelStepNumber + lengthForecast)+'.vtu'
 
